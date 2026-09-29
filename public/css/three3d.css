@@ -1,0 +1,135 @@
+/* ==========================================================================
+   NovaPulse 3D Visual Effects & Spatial Styling (Light & Vibrant)
+   ========================================================================== */
+
+/* 3D Scene Host Container */
+.spatial-scene-wrapper {
+  position: relative;
+  perspective: 1200px;
+}
+
+/* 3D Interactive Floating Dashboard Widget */
+.spatial-3d-banner {
+  margin: 20px 24px 0 24px;
+  background: linear-gradient(135deg, rgba(8, 145, 178, 0.12) 0%, rgba(124, 58, 237, 0.1) 50%, rgba(5, 150, 105, 0.1) 100%);
+  border: 1px solid rgba(8, 145, 178, 0.25);
+  border-radius: var(--radius-xl);
+  padding: 20px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  backdrop-filter: blur(16px);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05), inset 0 1px 1px rgba(255, 255, 255, 0.8);
+}
+
+.spatial-3d-banner::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle at 50% 50%, rgba(8, 145, 178, 0.12), transparent 70%);
+  animation: rotate-radial 18s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes rotate-radial {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.banner-3d-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.banner-3d-subtitle {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  max-width: 600px;
+  font-weight: 500;
+}
+
+.banner-3d-stats {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.banner-stat-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 18px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+.banner-stat-number {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--primary);
+  font-family: 'Outfit', sans-serif;
+}
+
+.banner-stat-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  letter-spacing: 0.05em;
+}
+
+/* 3D Depth tilt classes */
+.tilt-card-3d {
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.tilt-inner-depth {
+  transform: translateZ(24px);
+  transition: transform 0.2s ease;
+}
+
+/* Floating animation keyframes for 3D elements */
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-8px) rotate(1.5deg); }
+}
+
+.float-3d {
+  animation: float-slow 4s ease-in-out infinite;
+}
+
+/* Glowing Aura Indicator */
+.aura-glow-primary {
+  position: relative;
+}
+
+.aura-glow-primary::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: var(--gradient-brand);
+  border-radius: inherit;
+  z-index: -1;
+  filter: blur(8px);
+  opacity: 0.4;
+  transition: opacity 0.3s ease;
+}
+
+.aura-glow-primary:hover::after {
+  opacity: 0.8;
+  filter: blur(12px);
+}

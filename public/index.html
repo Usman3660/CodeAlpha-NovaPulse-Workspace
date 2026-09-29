@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NovaPulse — Asana Workspace</title>
+  <meta name="description" content="Collaborative Project Management Tool with Asana-identical UI, real-time WebSockets, list sections, kanban boards, timeline, calendar, and task drawer." />
+
+  <!-- Google Fonts: Inter & Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="css/asana.css?v=20260920_v2" />
+  <link rel="stylesheet" href="css/three3d.css?v=20260920_v2" />
+
+  <!-- External Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+
+  <!-- Three.js 3D Background Canvas (Fixed background) -->
+  <canvas id="three-bg-canvas" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; opacity: 0.15; pointer-events: none; z-index: 0;"></canvas>
+
+  <!-- Celebration Floating Creature Banner Container -->
+  <div id="asana-celebration-container" class="celebration-container"></div>
+
+  <!-- =========================================================================
+       ASANA GLOBAL TOP BAR
+       ========================================================================= -->
+  <header class="asana-global-topbar">
+    <div class="topbar-left">
+      <button class="topbar-icon-btn" id="sidebar-toggle-btn" title="Toggle Sidebar">
+        <i data-lucide="menu" style="width: 18px; height: 18px;"></i>
+      </button>
+
+      <!-- Asana 3-Dot Logo & Workspace Switcher -->
+      <div class="asana-top-brand">
+        <div class="asana-logo-constellation">
+          <span class="asana-dot dot-1"></span>
+          <span class="asana-dot dot-2"></span>
+          <span class="asana-dot dot-3"></span>
+        </div>
+        <div class="workspace-switcher">
+          <span class="workspace-name">NovaPulse Workspace</span>
+          <i data-lucide="chevron-down" style="width: 14px; height: 14px; color: var(--text-tertiary);"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center Omnisearch Bar -->
+    <div class="topbar-center">
+      <div class="asana-omnisearch-wrap">
+        <i data-lucide="search" style="width: 15px; height: 15px; color: var(--text-tertiary);"></i>
+        <input type="text" id="global-search-input" placeholder="Search tasks, projects, or messages..." />
+        <span class="search-shortcut-badge">Ctrl K</span>
+      </div>
+    </div>
+
+    <!-- Topbar Right Controls -->
+    <div class="topbar-right">
+      <!-- "+ Create" Primary Action Pill -->
+      <button class="asana-top-create-btn" id="top-create-btn">
+        <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+        <span>Create</span>
+      </button>
+
+      <!-- Live Online Presence Stack -->
+      <div class="topbar-presence-pill" title="Live Collaborators Online">
+        <div id="presence-avatars-container" class="presence-stack">
+          <!-- Dynamically populated via WebSockets -->
+        </div>
+        <span class="presence-live-label">
+          <span class="live-pulse-dot"></span> Live
+        </span>
+      </div>
+
+      <!-- Quick Notification Bell -->
+      <button class="topbar-icon-btn notification-bell-btn" id="topbar-inbox-btn" title="Notifications">
+        <i data-lucide="bell" style="width: 18px; height: 18px;"></i>
+        <span id="topbar-inbox-badge" class="notification-badge" style="display: none;">0</span>
+      </button>
+
+      <!-- Prominent Edit Profile Button -->
+      <button class="toolbar-secondary-btn" id="topbar-edit-profile-btn" onclick="window.openProfileModal()" style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; font-size: 0.8rem; font-weight: 700; border-radius: var(--radius-full); cursor: pointer;" title="Edit Profile & Picture">
+        <i data-lucide="user" style="width: 14px; height: 14px; color: var(--asana-coral);"></i>
+        <span>Edit Profile</span>
+      </button>
+
+      <!-- User Profile Avatar Pill -->
+      <div class="topbar-user-menu" id="topbar-user-btn" onclick="window.openProfileModal()" title="Account Settings & Profile Picture" style="cursor: pointer;">
+        <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150" class="topbar-user-avatar" id="sidebar-user-avatar" alt="User Avatar" />
+      </div>
+    </div>
+  </header>
+
+  <!-- =========================================================================
+       ASANA APP LAYOUT SHELL
+       ========================================================================= -->
+  <div class="asana-app-layout">
+
+    <!-- 1. LEFT NAVIGATION SIDEBAR -->
+    <aside class="asana-sidebar" id="asana-sidebar">
+      <div class="sidebar-scroll-area">
+        
+        <!-- Sidebar Navigation List -->
+        <ul class="sidebar-nav-list">
+          <li class="sidebar-nav-item active" data-nav="home">
+            <i data-lucide="home" style="width: 18px; height: 18px;"></i>
+            <span>Home</span>
+          </li>
+          <li class="sidebar-nav-item" data-nav="my-tasks">
+            <i data-lucide="check-circle-2" style="width: 18px; height: 18px;"></i>
+            <span>My Tasks</span>
+          </li>
+          <li class="sidebar-nav-item" data-nav="inbox">
+            <i data-lucide="bell" style="width: 18px; height: 18px;"></i>
+            <span>Inbox</span>
+            <span id="sidebar-inbox-badge" class="sidebar-badge" style="display: none;">0</span>
+          </li>
+          <li class="sidebar-nav-item" data-nav="dashboard">
+            <i data-lucide="bar-chart-2" style="width: 18px; height: 18px;"></i>
+            <span>Reporting</span>
+          </li>
+          <li class="sidebar-nav-item" data-nav="portfolios">
+            <i data-lucide="briefcase" style="width: 18px; height: 18px;"></i>
+            <span>Portfolios</span>
+          </li>
+          <li class="sidebar-nav-item" data-nav="goals">
+            <i data-lucide="target" style="width: 18px; height: 18px;"></i>
+            <span>Goals</span>
+          </li>
+        </ul>
+
+        <div class="sidebar-divider"></div>
+
+        <!-- Starred Section -->
+        <div class="sidebar-section-header">
+          <span>Starred</span>
+          <i data-lucide="star" style="width: 13px; height: 13px; color: var(--asana-yellow);"></i>
+        </div>
+        <ul class="sidebar-projects-list" id="sidebar-starred-list">
+          <!-- Populated dynamically -->
+        </ul>
+
+        <!-- Projects Header & List -->
+        <div class="sidebar-section-header">
+          <span>Projects</span>
+          <button id="sidebar-add-project-btn" class="sidebar-add-icon-btn" title="Create new project">
+            <i data-lucide="plus" style="width: 14px; height: 14px;"></i>
+          </button>
+        </div>
+
+        <ul class="sidebar-projects-list" id="sidebar-projects-list">
+          <!-- Dynamically populated project items -->
+        </ul>
+
+        <div class="sidebar-divider"></div>
+
+        <!-- Workspace Teams -->
+        <div class="sidebar-section-header">
+          <span>Teams</span>
+        </div>
+        <ul class="sidebar-teams-list">
+          <li class="sidebar-team-item"><i data-lucide="users" style="width: 14px; height: 14px;"></i> Product Engineering</li>
+          <li class="sidebar-team-item"><i data-lucide="palette" style="width: 14px; height: 14px;"></i> Brand & Design</li>
+          <li class="sidebar-team-item"><i data-lucide="megaphone" style="width: 14px; height: 14px;"></i> Growth Marketing</li>
+        </ul>
+
+      </div>
+
+      <!-- Bottom User Profile Pill -->
+      <div class="sidebar-footer" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; gap: 8px;">
+        <div class="sidebar-user-pill" id="sidebar-user-profile-btn" onclick="window.openProfileModal()" style="cursor: pointer; flex: 1; display: flex; align-items: center; gap: 10px; overflow: hidden;" title="Click to Edit Profile">
+          <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150" class="sidebar-user-avatar" id="sidebar-footer-avatar" alt="Avatar" />
+          <div class="sidebar-user-info" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            <span class="sidebar-user-name" id="sidebar-user-name" style="display: block; font-weight: 700; font-size: 0.82rem;">Usman</span>
+            <span class="sidebar-user-role" id="sidebar-user-role" style="display: block; font-size: 0.72rem; color: var(--text-tertiary);">Product Lead</span>
+          </div>
+        </div>
+        <button id="sidebar-edit-profile-quick-btn" class="sidebar-add-icon-btn" title="Edit Profile & Picture" onclick="window.openProfileModal();" style="width: 28px; height: 28px; border-radius: var(--radius-sm); border: 1px solid var(--asana-border); display: flex; align-items: center; justify-content: center; background: #fff; cursor: pointer; color: var(--text-secondary);">
+          <i data-lucide="edit-3" style="width: 14px; height: 14px; color: var(--asana-coral);"></i>
+        </button>
+        <button id="logout-quick-btn" class="sidebar-logout-btn" title="Logout" onclick="document.getElementById('logout-btn').click();" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); cursor: pointer;">
+          <i data-lucide="log-out" style="width: 14px; height: 14px;"></i>
+        </button>
+      </div>
+    </aside>
+
+    <!-- 2. MAIN WORKSPACE CONTENT AREA -->
+    <main class="asana-main-content">
+
+      <!-- Project Header -->
+      <header class="asana-project-header">
+        <div class="project-header-left">
+          <div class="project-header-icon-box" id="project-header-icon-box">
+            <i data-lucide="folder-kanban" style="width: 20px; height: 20px;"></i>
+          </div>
+          <div class="project-header-info">
+            <div class="project-header-title-row">
+              <h1 class="project-header-title" id="project-header-title-text">NovaPulse Web App 2.0</h1>
+              <button class="project-star-btn" id="project-star-btn" title="Star Project">
+                <i data-lucide="star" style="width: 16px; height: 16px;"></i>
+              </button>
+              <div class="project-privacy-pill">
+                <i data-lucide="globe" style="width: 12px; height: 12px;"></i> Public
+              </div>
+            </div>
+
+            <div class="project-header-meta-row">
+              <div class="project-status-badge" id="project-status-badge">
+                <span class="project-status-dot"></span>
+                <span id="project-status-text">On Track</span>
+              </div>
+              <span class="meta-separator">•</span>
+              <span class="project-due-info" id="project-due-info">Due Oct 15</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="project-header-right">
+          <!-- Invite / Share Button -->
+          <button class="project-share-pill-btn" id="project-share-btn">
+            <i data-lucide="key" style="width: 14px; height: 14px;"></i> Invite: NOVA-8821
+          </button>
+
+          <!-- Customize Button -->
+          <button class="project-customize-btn" onclick="window.showToast('Project customization panel ready', 'info')">
+            <i data-lucide="sliders" style="width: 14px; height: 14px;"></i> Customize
+          </button>
+        </div>
+      </header>
+
+      <!-- View Navigation Tabs: List, Board, Timeline, Calendar, Dashboard, Messages, Files -->
+      <nav class="asana-view-nav">
+        <div class="asana-tabs-group">
+          <button class="asana-tab-btn active" data-view="list">
+            <i data-lucide="list" style="width: 16px; height: 16px;"></i> List
+          </button>
+          <button class="asana-tab-btn" data-view="board">
+            <i data-lucide="kanban" style="width: 16px; height: 16px;"></i> Board
+          </button>
+          <button class="asana-tab-btn" data-view="timeline">
+            <i data-lucide="git-commit" style="width: 16px; height: 16px;"></i> Timeline
+          </button>
+          <button class="asana-tab-btn" data-view="calendar">
+            <i data-lucide="calendar" style="width: 16px; height: 16px;"></i> Calendar
+          </button>
+          <button class="asana-tab-btn" data-view="dashboard">
+            <i data-lucide="bar-chart-2" style="width: 16px; height: 16px;"></i> Dashboard
+          </button>
+          <button class="asana-tab-btn" data-view="messages">
+            <i data-lucide="message-square" style="width: 16px; height: 16px;"></i> Messages
+          </button>
+        </div>
+      </nav>
+
+      <!-- Asana Action Toolbar (Add task, Add section, Filter, Sort, Group) -->
+      <div class="asana-toolbar">
+        <div class="asana-toolbar-left">
+          <button class="toolbar-primary-btn" id="toolbar-add-task-btn">
+            <i data-lucide="plus" style="width: 15px; height: 15px;"></i>
+            <span>Add task</span>
+          </button>
+
+          <button class="toolbar-secondary-btn" id="toolbar-add-section-btn">
+            <i data-lucide="plus" style="width: 14px; height: 14px;"></i> Add section
+          </button>
+
+          <div class="toolbar-divider"></div>
+
+          <!-- Priority Filter -->
+          <div class="toolbar-filter-item">
+            <i data-lucide="filter" style="width: 13px; height: 13px; color: var(--text-tertiary);"></i>
+            <select id="toolbar-priority-filter">
+              <option value="all">All Priorities</option>
+              <option value="urgent">Urgent</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+
+          <!-- Sort Filter -->
+          <div class="toolbar-filter-item">
+            <i data-lucide="arrow-up-down" style="width: 13px; height: 13px; color: var(--text-tertiary);"></i>
+            <select id="toolbar-sort-filter">
+              <option value="default">Default Sort</option>
+              <option value="due_date">Sort by Due Date</option>
+              <option value="priority">Sort by Priority</option>
+              <option value="title">Sort Alphabetically</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="asana-toolbar-right">
+          <div class="toolbar-hint">
+            <i data-lucide="sparkles" style="width: 13px; height: 13px; color: var(--asana-coral);"></i>
+            <span>Click task row to inspect</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- =====================================================================
+           VIEW 1: ASANA LIST VIEW (Table with Sections & Inline Adding)
+           ===================================================================== -->
+      <section class="asana-list-view" id="asana-list-view">
+        <!-- Section table rendered dynamically -->
+      </section>
+
+      <!-- =====================================================================
+           VIEW 2: ASANA BOARD VIEW (Kanban Columns with Drag & Drop)
+           ===================================================================== -->
+      <section class="asana-board-view" id="asana-board-view" style="display: none;">
+        <!-- Columns & Cards rendered dynamically -->
+      </section>
+
+      <!-- =====================================================================
+           VIEW 3: ASANA TIMELINE VIEW (Gantt Schedule)
+           ===================================================================== -->
+      <section class="asana-timeline-view" id="asana-timeline-view" style="display: none;">
+        <!-- Interactive Gantt timeline rendered dynamically -->
+      </section>
+
+      <!-- =====================================================================
+           VIEW 4: ASANA CALENDAR VIEW (Monthly Task Grid)
+           ===================================================================== -->
+      <section class="asana-calendar-view" id="asana-calendar-view" style="display: none;">
+        <!-- Interactive Calendar rendered dynamically -->
+      </section>
+
+      <!-- =====================================================================
+           VIEW 5: ASANA DASHBOARD VIEW (Velocity & Progress Metrics)
+           ===================================================================== -->
+      <section class="asana-dashboard-view" id="asana-dashboard-view" style="display: none;">
+        <!-- Analytics & Progress charts rendered dynamically -->
+      </section>
+
+      <!-- =====================================================================
+           VIEW 6: ASANA MESSAGES VIEW (Project Team Chat)
+           ===================================================================== -->
+      <section class="asana-messages-view" id="asana-messages-view" style="display: none;">
+        <!-- Discussion thread rendered dynamically -->
+      </section>
+
+      <!-- =====================================================================
+           VIEW 7: MY TASKS VIEW
+           ===================================================================== -->
+      <section class="asana-my-tasks-view" id="asana-my-tasks-view" style="display: none;">
+        <!-- My tasks list rendered dynamically -->
+      </section>
+
+      <!-- =====================================================================
+           VIEW 8: INBOX NOTIFICATIONS VIEW
+           ===================================================================== -->
+      <section class="asana-inbox-view" id="asana-inbox-view" style="display: none; overflow-y: auto; height: 100%;">
+        <!-- Notifications feed rendered dynamically -->
+      </section>
+
+      <!-- =====================================================================
+           VIEW 9: ASANA PORTFOLIOS VIEW
+           ===================================================================== -->
+      <section class="asana-portfolios-view" id="asana-portfolios-view" style="display: none; overflow-y: auto; height: 100%;">
+        <!-- Portfolios overview rendered dynamically -->
+      </section>
+
+      <!-- =====================================================================
+           VIEW 10: ASANA GOALS VIEW (Company & Team OKRs)
+           ===================================================================== -->
+      <section class="asana-goals-view" id="asana-goals-view" style="display: none; overflow-y: auto; height: 100%;">
+        <!-- Goals & OKRs rendered dynamically -->
+      </section>
+
+      <!-- =====================================================================
+           ASANA SIGNATURE RIGHT-SLIDE TASK INSPECTOR DRAWER
+           ===================================================================== -->
+      <aside class="asana-task-drawer" id="asana-task-drawer">
+        <div class="drawer-header">
+          <!-- "Mark Complete" Toggle -->
+          <button class="drawer-mark-complete-btn" id="drawer-mark-complete-btn">
+            <i data-lucide="check" style="width: 16px; height: 16px;"></i>
+            <span>Mark Complete</span>
+          </button>
+
+          <div class="drawer-header-actions">
+            <button class="drawer-action-btn" id="drawer-like-btn" title="Like Task">
+              <i data-lucide="thumbs-up" style="width: 15px; height: 15px;"></i>
+              <span id="drawer-like-count" style="font-size: 0.78rem; font-weight: 700; margin-left: 4px;">0</span>
+            </button>
+            <button class="drawer-action-btn" id="drawer-copy-link-btn" title="Copy Task Link">
+              <i data-lucide="link" style="width: 15px; height: 15px;"></i>
+            </button>
+            <button class="drawer-action-btn" id="drawer-delete-task-btn" title="Delete Task" style="color: #ef4444;">
+              <i data-lucide="trash-2" style="width: 15px; height: 15px;"></i>
+            </button>
+            <div class="drawer-action-divider"></div>
+            <button class="drawer-close-btn" id="drawer-close-btn" title="Close Panel (Esc)">
+              <i data-lucide="x" style="width: 18px; height: 18px;"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="drawer-body">
+          <!-- Task Title -->
+          <input type="text" class="drawer-title-input" id="drawer-task-title" placeholder="Write a task name..." />
+
+          <!-- Metadata Fields Grid -->
+          <div class="drawer-fields-grid">
+            <span class="drawer-field-label">Assignee</span>
+            <div class="drawer-field-value" id="drawer-assignee-wrap">
+              <!-- Assignee avatar & name selector -->
+            </div>
+
+            <span class="drawer-field-label">Due Date</span>
+            <div class="drawer-field-value">
+              <div class="date-picker-wrap">
+                <i data-lucide="calendar" style="width: 14px; height: 14px; color: var(--text-tertiary);"></i>
+                <input type="date" id="drawer-task-due-date" />
+              </div>
+            </div>
+
+            <span class="drawer-field-label">Section</span>
+            <div class="drawer-field-value">
+              <select id="drawer-task-section">
+                <!-- Column options -->
+              </select>
+            </div>
+
+            <span class="drawer-field-label">Priority</span>
+            <div class="drawer-field-value">
+              <select id="drawer-task-priority">
+                <option value="low">🟢 Low</option>
+                <option value="medium">🟡 Medium</option>
+                <option value="high">🟠 High</option>
+                <option value="urgent">🔴 Urgent</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Description -->
+          <div class="drawer-section-block">
+            <div class="drawer-block-header">
+              <span class="drawer-block-title">Description</span>
+            </div>
+            <textarea class="drawer-desc-textarea" id="drawer-task-desc" placeholder="What is this task about? Add context, details, and acceptance criteria..."></textarea>
+          </div>
+
+          <!-- Subtasks Section -->
+          <div class="drawer-section-block">
+            <div class="drawer-block-header">
+              <span class="drawer-block-title">Subtasks</span>
+              <span class="drawer-subtask-badge" id="drawer-subtask-counter">0/0</span>
+            </div>
+
+            <div id="drawer-subtasks-container" class="drawer-subtasks-list">
+              <!-- Subtasks list -->
+            </div>
+
+            <form id="drawer-add-subtask-form" class="drawer-add-subtask-form">
+              <input type="text" class="drawer-subtask-input" id="drawer-new-subtask-input" placeholder="Add a subtask..." />
+              <button type="submit" class="drawer-subtask-btn">Add</button>
+            </form>
+          </div>
+
+          <!-- Activity / Comments Stream -->
+          <div class="drawer-section-block">
+            <div class="drawer-block-header">
+              <span class="drawer-block-title">Activity & Discussion</span>
+            </div>
+
+            <div id="drawer-comments-stream" class="drawer-comments-stream">
+              <!-- Comments list -->
+            </div>
+
+            <form class="drawer-comment-composer" id="drawer-comment-form">
+              <div class="composer-top-row">
+                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150" class="composer-user-avatar" id="drawer-composer-avatar" alt="Avatar" />
+                <textarea class="drawer-composer-textarea" id="drawer-comment-input" rows="2" placeholder="Ask a question or post an update..."></textarea>
+              </div>
+              <div class="composer-bottom-bar">
+                <span class="composer-tip">Tip: Press Enter to post</span>
+                <button type="submit" class="composer-submit-btn">Comment</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </aside>
+
+    </main>
+  </div>
+
+  <!-- =========================================================================
+       MODALS
+       ========================================================================= -->
+
+  <!-- Create Task Modal -->
+  <div class="modal-backdrop" id="create-task-modal">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 class="modal-title">Create Task</h3>
+        <button class="drawer-close-btn modal-cancel-btn"><i data-lucide="x"></i></button>
+      </div>
+      <form id="create-task-form">
+        <div class="modal-form-grid">
+          <div>
+            <label class="modal-label">Task Name *</label>
+            <input type="text" id="task-title-input" class="modal-input" placeholder="e.g. Design Marketing Landing Page" required />
+          </div>
+
+          <div>
+            <label class="modal-label">Description</label>
+            <textarea id="task-desc-input" class="modal-textarea" rows="3" placeholder="Context, specs, and requirements..."></textarea>
+          </div>
+
+          <div class="modal-two-col">
+            <div>
+              <label class="modal-label">Section</label>
+              <select id="task-column-select" class="modal-select"></select>
+            </div>
+            <div>
+              <label class="modal-label">Priority</label>
+              <select id="task-priority-input" class="modal-select">
+                <option value="medium">🟡 Medium</option>
+                <option value="high">🟠 High</option>
+                <option value="urgent">🔴 Urgent</option>
+                <option value="low">🟢 Low</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="modal-label">Due Date</label>
+            <input type="date" id="task-due-date-input" class="modal-input" />
+          </div>
+
+          <div>
+            <label class="modal-label">Assignee</label>
+            <div id="task-assignees-picker" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px;"></div>
+          </div>
+          <input type="hidden" id="task-cover-color-input" value="#f06a6a" />
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="modal-cancel-btn modal-btn-secondary">Cancel</button>
+          <button type="submit" class="modal-btn-primary">Create Task</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Create Project Modal -->
+  <div class="modal-backdrop" id="create-project-modal">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 class="modal-title">New Project</h3>
+        <button class="drawer-close-btn modal-cancel-btn"><i data-lucide="x"></i></button>
+      </div>
+      <form id="create-project-form">
+        <div class="modal-form-grid">
+          <div>
+            <label class="modal-label">Project Name *</label>
+            <input type="text" id="proj-name-input" class="modal-input" placeholder="e.g. Brand Identity 2026" required />
+          </div>
+          <div>
+            <label class="modal-label">Description</label>
+            <textarea id="proj-desc-input" class="modal-textarea" rows="2" placeholder="Project goals and scope..."></textarea>
+          </div>
+          <div>
+            <label class="modal-label">Project Color Accent</label>
+            <input type="color" id="proj-color-input" class="modal-color-input" value="#f06a6a" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="modal-cancel-btn modal-btn-secondary">Cancel</button>
+          <button type="submit" class="modal-btn-primary">Create Project</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Section Modal -->
+  <div class="modal-backdrop" id="create-section-modal">
+    <div class="modal-container" style="max-width: 400px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Add New Section</h3>
+        <button class="drawer-close-btn modal-cancel-btn"><i data-lucide="x"></i></button>
+      </div>
+      <form id="create-section-form">
+        <div class="modal-form-grid">
+          <div>
+            <label class="modal-label">Section Name *</label>
+            <input type="text" id="section-name-input" class="modal-input" placeholder="e.g. In Review, QA, Backlog" required />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="modal-cancel-btn modal-btn-secondary">Cancel</button>
+          <button type="submit" class="modal-btn-primary">Add Section</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Create Goal Modal -->
+  <div class="modal-backdrop" id="create-goal-modal">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 class="modal-title">Create New Goal (OKR)</h3>
+        <button class="drawer-close-btn modal-cancel-btn"><i data-lucide="x"></i></button>
+      </div>
+      <form id="create-goal-form">
+        <div class="modal-form-grid">
+          <div>
+            <label class="modal-label">Goal Objective *</label>
+            <input type="text" id="goal-title-input" class="modal-input" placeholder="e.g. Launch Mobile App Beta by Q4" required />
+          </div>
+          <div class="modal-two-col">
+            <div>
+              <label class="modal-label">Owner</label>
+              <select id="goal-owner-select" class="modal-select">
+                <option value="Usman">Usman (Product Lead)</option>
+                <option value="Ali">Ali (Full-Stack Dev)</option>
+                <option value="Ahmad">Ahmad (UI/UX Designer)</option>
+              </select>
+            </div>
+            <div>
+              <label class="modal-label">Timeframe</label>
+              <select id="goal-timeframe-select" class="modal-select">
+                <option value="Q3 2026">Q3 2026</option>
+                <option value="Q4 2026">Q4 2026</option>
+                <option value="2027 Annual">2027 Annual</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="modal-label">Initial Progress %</label>
+            <input type="number" id="goal-progress-input" class="modal-input" min="0" max="100" value="25" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="modal-cancel-btn modal-btn-secondary">Cancel</button>
+          <button type="submit" class="modal-btn-primary">Create Goal</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Profile Settings Modal -->
+  <div class="modal-backdrop" id="profile-modal">
+    <div class="modal-container" style="max-width: 540px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Profile & Account Settings</h3>
+        <button class="drawer-close-btn modal-cancel-btn"><i data-lucide="x"></i></button>
+      </div>
+      <form id="profile-form">
+        <!-- Avatar Preview & Upload Header -->
+        <div style="display: flex; align-items: center; gap: 18px; padding: 16px; background: var(--asana-sidebar-bg); border-radius: var(--radius-md); border: 1px solid var(--asana-border); margin-bottom: 16px;">
+          <div style="position: relative; flex-shrink: 0;">
+            <img id="profile-avatar-preview" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150" alt="Avatar Preview" style="width: 72px; height: 72px; border-radius: 50%; object-fit: cover; border: 3px solid #ffffff; box-shadow: var(--shadow-md);" />
+            <label for="profile-photo-input" style="position: absolute; bottom: -2px; right: -2px; width: 26px; height: 26px; background: var(--asana-coral); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: var(--shadow-sm); border: 2px solid #fff;" title="Upload photo from PC">
+              <i data-lucide="camera" style="width: 13px; height: 13px;"></i>
+            </label>
+            <input type="file" id="profile-photo-input" accept="image/*" style="display: none;" />
+          </div>
+          <div style="flex: 1;">
+            <div style="font-weight: 800; font-size: 0.95rem; color: var(--text-primary);">Profile Picture</div>
+            <p style="font-size: 0.78rem; color: var(--text-secondary); margin: 2px 0 8px 0;">Upload any image file or choose from curated presets below.</p>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button type="button" class="toolbar-secondary-btn" onclick="document.getElementById('profile-photo-input').click()" style="padding: 4px 10px; font-size: 0.78rem; font-weight: 700;">
+                <i data-lucide="upload" style="width: 12px; height: 12px;"></i> Upload Photo
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Preset Avatars Quick Selector -->
+        <div style="margin-bottom: 14px;">
+          <label class="modal-label" style="margin-bottom: 6px;">Choose Avatar Preset</label>
+          <div style="display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px;">
+            <img class="profile-preset-avatar" data-avatar="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150" title="Usman (Product Lead)" style="width: 36px; height: 36px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform 0.15s;" />
+            <img class="profile-preset-avatar" data-avatar="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150" title="Ali (Full-Stack Dev)" style="width: 36px; height: 36px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform 0.15s;" />
+            <img class="profile-preset-avatar" data-avatar="https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=150" src="https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=150" title="Ahmad (UI/UX Designer)" style="width: 36px; height: 36px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform 0.15s;" />
+            <img class="profile-preset-avatar" data-avatar="https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150" src="https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150" title="Elena (Design Lead)" style="width: 36px; height: 36px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform 0.15s;" />
+            <img class="profile-preset-avatar" data-avatar="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150" src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150" title="David (Architect)" style="width: 36px; height: 36px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform 0.15s;" />
+            <img class="profile-preset-avatar" data-avatar="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150" src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150" title="Sophia (Data Engineer)" style="width: 36px; height: 36px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform 0.15s;" />
+          </div>
+        </div>
+
+        <div class="modal-form-grid">
+          <div>
+            <label class="modal-label">Or Custom Image URL</label>
+            <input type="text" id="profile-avatar" class="modal-input" placeholder="https://..." />
+          </div>
+          <div>
+            <label class="modal-label">Full Name *</label>
+            <input type="text" id="profile-name" class="modal-input" required />
+          </div>
+          <div>
+            <label class="modal-label">Role / Job Title</label>
+            <input type="text" id="profile-role" class="modal-input" placeholder="e.g. Lead Designer, Frontend Dev" />
+          </div>
+          <div>
+            <label class="modal-label">Bio / About</label>
+            <textarea id="profile-bio" class="modal-input" rows="2" placeholder="Brief info about your role and responsibilities..." style="resize: vertical;"></textarea>
+          </div>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <div style="flex: 1;">
+              <label class="modal-label">Accent Color</label>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <input type="color" id="profile-color" value="#f06a6a" style="width: 38px; height: 36px; padding: 2px; border: 1px solid var(--asana-border); border-radius: var(--radius-sm); cursor: pointer;" />
+                <span id="profile-email-display" style="font-size: 0.8rem; color: var(--text-tertiary);"></span>
+              </div>
+            </div>
+          </div>
+          <div style="border-top: 1px solid var(--asana-border); padding-top: 14px; margin-top: 6px;">
+            <button type="button" id="logout-btn" class="modal-btn-logout">
+              <i data-lucide="log-out" style="width: 15px; height: 15px;"></i> Log Out of Workspace
+            </button>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="modal-cancel-btn modal-btn-secondary">Cancel</button>
+          <button type="submit" class="modal-btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       AUTH SCREEN OVERLAY
+       ========================================================================= -->
+  <div class="auth-overlay" id="auth-overlay">
+    <div class="auth-card">
+      <div class="auth-header">
+        <div class="asana-logo-constellation" style="margin: 0 auto 12px auto; transform: scale(1.4);">
+          <span class="asana-dot dot-1"></span>
+          <span class="asana-dot dot-2"></span>
+          <span class="asana-dot dot-3"></span>
+        </div>
+        <h2 class="auth-title">Welcome to NovaPulse</h2>
+        <p class="auth-subtitle">Asana-Powered Collaborative Workspace</p>
+      </div>
+
+      <!-- Auth Tabs: Sign In / Create Account -->
+      <div style="display: flex; border-bottom: 1px solid var(--asana-border); margin-bottom: 18px;">
+        <button type="button" id="tab-auth-login" style="flex: 1; padding: 8px; font-weight: 700; font-size: 0.88rem; background: none; border: none; border-bottom: 2px solid var(--asana-coral); color: var(--asana-coral); cursor: pointer;">Sign In</button>
+        <button type="button" id="tab-auth-register" style="flex: 1; padding: 8px; font-weight: 600; font-size: 0.88rem; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); cursor: pointer;">Create Account</button>
+      </div>
+
+      <!-- Login Form -->
+      <div id="login-form-wrap">
+        <form id="login-form" class="auth-form">
+          <div>
+            <label class="modal-label">Work Email</label>
+            <input type="email" id="login-email" class="modal-input" value="usman@example.com" required />
+          </div>
+          <div>
+            <label class="modal-label">Password</label>
+            <input type="password" id="login-password" class="modal-input" value="password123" required />
+          </div>
+          <button type="submit" class="auth-submit-btn">Sign In to Asana Workspace</button>
+        </form>
+      </div>
+
+      <!-- Register Form -->
+      <div id="register-form-wrap" style="display: none;">
+        <form id="register-form" class="auth-form">
+          <div>
+            <label class="modal-label">Full Name</label>
+            <input type="text" id="reg-name" class="modal-input" placeholder="e.g. Usman Khan" required />
+          </div>
+          <div>
+            <label class="modal-label">Work Email</label>
+            <input type="email" id="reg-email" class="modal-input" placeholder="usman@example.com" required />
+          </div>
+          <div>
+            <label class="modal-label">Job Role</label>
+            <input type="text" id="reg-role" class="modal-input" placeholder="e.g. Product Lead" value="Product Lead" />
+          </div>
+          <div>
+            <label class="modal-label">Password</label>
+            <input type="password" id="reg-password" class="modal-input" placeholder="At least 6 characters" required minlength="6" />
+          </div>
+          <button type="submit" class="auth-submit-btn">Create Asana Workspace Account</button>
+        </form>
+      </div>
+
+      <!-- Quick 1-Click Persona Switcher -->
+      <div class="auth-demo-section">
+        <div class="auth-demo-label">Or Instant 1-Click Demo Login:</div>
+        <div class="auth-demo-grid" style="grid-template-columns: repeat(3, 1fr);">
+          <button type="button" class="demo-user-btn" data-email="usman@example.com">
+            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150" alt="Usman" />
+            <div class="demo-user-text">
+              <span class="demo-name">Usman</span>
+              <span class="demo-role">Product Lead</span>
+            </div>
+          </button>
+          <button type="button" class="demo-user-btn" data-email="ali@example.com">
+            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150" alt="Ali" />
+            <div class="demo-user-text">
+              <span class="demo-name">Ali</span>
+              <span class="demo-role">Full-Stack Dev</span>
+            </div>
+          </button>
+          <button type="button" class="demo-user-btn" data-email="ahmad@example.com">
+            <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150" alt="Ahmad" />
+            <div class="demo-user-text">
+              <span class="demo-name">Ahmad</span>
+              <span class="demo-role">UI/UX Designer</span>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container"></div>
+
+  <!-- Scripts with cache busting -->
+  <script src="js/audio.js?v=20260923_v3"></script>
+  <script src="js/three-scene.js?v=20260923_v3"></script>
+  <script src="js/tilt3d.js?v=20260923_v3"></script>
+  <script src="js/api.js?v=20260923_v3"></script>
+  <script src="js/state.js?v=20260923_v3"></script>
+  <script src="js/socket-client.js?v=20260923_v3"></script>
+  <script src="js/auth.js?v=20260923_v3"></script>
+  <script src="js/analytics.js?v=20260923_v3"></script>
+  <script src="js/board.js?v=20260923_v3"></script>
+  <script src="js/asana-app.js?v=20260923_v3"></script>
+  <script src="js/app.js?v=20260923_v3"></script>
+
+  <script>
+    // Global fallback for opening profile modal
+    window.openProfileModal = function() {
+      const modal = document.getElementById('profile-modal');
+      if (!modal) return;
+
+      const user = (typeof state !== 'undefined' && state.currentUser) ? state.currentUser : null;
+      if (user) {
+        const nameInput = document.getElementById('profile-name');
+        const roleInput = document.getElementById('profile-role');
+        const bioInput = document.getElementById('profile-bio');
+        const avatarInput = document.getElementById('profile-avatar');
+        const avatarPreview = document.getElementById('profile-avatar-preview');
+        const colorInput = document.getElementById('profile-color');
+        const emailDisplay = document.getElementById('profile-email-display');
+
+        if (nameInput) nameInput.value = user.name || '';
+        if (roleInput) roleInput.value = user.role || '';
+        if (bioInput) bioInput.value = user.bio || '';
+        if (avatarInput) avatarInput.value = user.avatar || '';
+        if (avatarPreview && user.avatar) avatarPreview.src = user.avatar;
+        if (colorInput) colorInput.value = user.color || '#f06a6a';
+        if (emailDisplay) emailDisplay.textContent = user.email || '';
+      }
+
+      modal.classList.add('open');
+      modal.style.display = 'flex';
+      modal.style.opacity = '1';
+      modal.style.visibility = 'visible';
+      modal.style.zIndex = '9999';
+
+      if (window.lucide) lucide.createIcons();
+    };
+
+    window.closeProfileModal = function() {
+      const modal = document.getElementById('profile-modal');
+      if (modal) {
+        modal.classList.remove('open');
+        modal.style.display = 'none';
+        modal.style.visibility = 'hidden';
+      }
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.lucide) lucide.createIcons();
+
+      // Explicit click event attachments
+      ['topbar-edit-profile-btn', 'topbar-user-btn', 'sidebar-user-profile-btn', 'sidebar-edit-profile-quick-btn'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            window.openProfileModal();
+          });
+        }
+      });
+    });
+  </script>
+</body>
+</html>
